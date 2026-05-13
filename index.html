@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>股票質押風險儀表板</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    :root {
+      --bg: #08090d;
+    }
+    * { font-feature-settings: "ss01", "cv11"; }
+    html, body {
+      font-family: 'Inter', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+      letter-spacing: -0.011em;
+      background: var(--bg);
+    }
+    .num { font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+    .display { letter-spacing: -0.04em; }
+
+    /* Aurora background */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(60% 50% at 15% 0%, rgba(56, 189, 248, 0.18) 0%, transparent 60%),
+        radial-gradient(50% 40% at 85% 10%, rgba(168, 85, 247, 0.14) 0%, transparent 60%),
+        radial-gradient(60% 60% at 50% 100%, rgba(34, 197, 94, 0.08) 0%, transparent 60%);
+      z-index: 0;
+    }
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 30%, transparent 80%);
+      -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 30%, transparent 80%);
+      z-index: 0;
+    }
+    #root { position: relative; z-index: 1; }
+
+    .glass {
+      background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 100%);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.07);
+      box-shadow:
+        0 1px 0 rgba(255,255,255,0.05) inset,
+        0 30px 60px -30px rgba(0,0,0,0.5);
+    }
+    .glass-strong {
+      background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255,255,255,0.09);
+      box-shadow:
+        0 1px 0 rgba(255,255,255,0.06) inset,
+        0 40px 80px -40px rgba(0,0,0,0.6);
+    }
+    .hairline { border-color: rgba(255,255,255,0.08); }
+
+    .gradient-text {
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 60%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .accent-text {
+      background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #c084fc 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    /* Slider */
+    .pledge-slider {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 6px;
+      background: linear-gradient(90deg, rgba(56,189,248,0.5), rgba(129,140,248,0.5));
+      border-radius: 9999px; outline: none;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.06) inset;
+    }
+    .pledge-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 22px; height: 22px;
+      border-radius: 9999px;
+      background: linear-gradient(135deg, #ffffff, #e2e8f0);
+      cursor: grab; border: none;
+      box-shadow:
+        0 0 0 1px rgba(0,0,0,0.4),
+        0 0 0 4px rgba(56,189,248,0.18),
+        0 6px 14px -4px rgba(0,0,0,0.6);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .pledge-slider::-webkit-slider-thumb:active { transform: scale(1.1); cursor: grabbing; }
+    .pledge-slider::-moz-range-thumb {
+      width: 22px; height: 22px; border-radius: 9999px;
+      background: #ffffff; cursor: grab; border: none;
+      box-shadow: 0 0 0 4px rgba(56,189,248,0.18), 0 6px 14px -4px rgba(0,0,0,0.6);
+    }
+
+    /* Input */
+    .field {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: #f8fafc;
+      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    }
+    .field:focus {
+      outline: none;
+      border-color: rgba(56,189,248,0.6);
+      background: rgba(255,255,255,0.06);
+      box-shadow: 0 0 0 4px rgba(56,189,248,0.15);
+    }
+    .field::placeholder { color: rgba(148,163,184,0.5); }
+
+    /* Card hover lift */
+    .lift { transition: transform 0.2s ease, border-color 0.2s ease; }
+    .lift:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.14); }
+
+    /* Pulse for live indicator */
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+    .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+
+    /* Fade in */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.5s ease forwards; }
+
+    /* Recharts polish */
+    .recharts-tooltip-wrapper:focus { outline: none; }
+
+    /* Risk pill colors */
+    .risk-safe   { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.35); color: #86efac; }
+    .risk-ok     { background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.35); color: #7dd3fc; }
+    .risk-warn   { background: rgba(251,146,60,0.12); border: 1px solid rgba(251,146,60,0.35); color: #fdba74; }
+    .risk-danger { background: rgba(244,63,94,0.12);  border: 1px solid rgba(244,63,94,0.35);  color: #fda4af; }
+  </style>
+</head>
+<body class="text-slate-100">
+  <div id="root"></div>
+
+  <script type="text/babel" data-presets="react">
+    const { useState, useMemo } = React;
+    const {
+      LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+      CartesianGrid, ReferenceLine, BarChart, Bar, LabelList, Label, Area, AreaChart
+    } = Recharts;
+
+    function Field({ label, suffix, hint, ...props }) {
+      return (
+        <div className="space-y-2">
+          <div className="flex items-baseline justify-between">
+            <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{label}</label>
+            {hint && <span className="text-[10px] text-slate-500">{hint}</span>}
+          </div>
+          <div className="relative">
+            <input
+              {...props}
+              className="field num w-full rounded-xl px-4 py-3 text-lg font-semibold pr-10"
+            />
+            {suffix && (
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-slate-500 pointer-events-none">{suffix}</span>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    function Slider({ value, min = 0, max = 100, step = 1, onValueChange }) {
+      return (
+        <input
+          type="range"
+          className="pledge-slider"
+          value={value[0]}
+          min={min}
+          max={max}
+          step={step}
+          onChange={(e) => onValueChange([Number(e.target.value)])}
+        />
+      );
+    }
+
+    function Metric({ label, value, accent = "white", caption }) {
+      const accentMap = {
+        white: "from-white/5 to-white/0",
+        sky: "from-sky-500/15 to-sky-500/0",
+        emerald: "from-emerald-500/15 to-emerald-500/0",
+        rose: "from-rose-500/15 to-rose-500/0",
+        amber: "from-amber-500/15 to-amber-500/0",
+        violet: "from-violet-500/15 to-violet-500/0",
+      };
+      const ringMap = {
+        white: "bg-white/40",
+        sky: "bg-sky-400",
+        emerald: "bg-emerald-400",
+        rose: "bg-rose-400",
+        amber: "bg-amber-400",
+        violet: "bg-violet-400",
+      };
+      return (
+        <div className={`glass lift relative rounded-2xl p-5 overflow-hidden`}>
+          <div className={`absolute inset-x-0 top-0 h-px bg-gradient-to-r ${accentMap[accent]}`}></div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className={`w-1 h-1 rounded-full ${ringMap[accent]}`}></span>
+            <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{label}</span>
+          </div>
+          <div className="num display text-[28px] font-bold text-white leading-none">{value}</div>
+          {caption && <div className="text-xs text-slate-500 mt-2">{caption}</div>}
+        </div>
+      );
+    }
+
+    function SectionHeader({ eyebrow, title, subtitle }) {
+      return (
+        <div className="flex items-end justify-between gap-4 mb-5">
+          <div>
+            {eyebrow && <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-300/80 mb-2">{eyebrow}</div>}
+            <h2 className="text-[22px] font-bold text-white display tracking-tight">{title}</h2>
+            {subtitle && <p className="text-sm text-slate-400 mt-1.5 leading-relaxed">{subtitle}</p>}
+          </div>
+        </div>
+      );
+    }
+
+    function PledgeDashboard() {
+      const [marketValue, setMarketValue] = useState(2500);
+      const [loanRatio, setLoanRatio] = useState(25);
+      const [marginCallRate, setMarginCallRate] = useState(130);
+      const [renewRate, setRenewRate] = useState(166);
+
+      const loanAmount = useMemo(() => marketValue * loanRatio / 100, [marketValue, loanRatio]);
+      const reinvestedMarketValue = useMemo(() => marketValue + loanAmount, [marketValue, loanAmount]);
+      const reinvestedMaintainRate = useMemo(() => loanAmount === 0 ? 0 : reinvestedMarketValue / loanAmount * 100, [reinvestedMarketValue, loanAmount]);
+      const currentMaintainRate = useMemo(() => loanAmount === 0 ? 0 : marketValue / loanAmount * 100, [marketValue, loanAmount]);
+      const marginCallDrop = useMemo(() => currentMaintainRate === 0 ? 0 : 1 - marginCallRate / currentMaintainRate, [marginCallRate, currentMaintainRate]);
+      const renewDrop = useMemo(() => currentMaintainRate === 0 ? 0 : 1 - renewRate / currentMaintainRate, [renewRate, currentMaintainRate]);
+      const reinvestedMarginDrop = useMemo(() => reinvestedMaintainRate === 0 ? 0 : 1 - marginCallRate / reinvestedMaintainRate, [marginCallRate, reinvestedMaintainRate]);
+      const reinvestedRenewDrop = useMemo(() => reinvestedMaintainRate === 0 ? 0 : 1 - renewRate / reinvestedMaintainRate, [renewRate, reinvestedMaintainRate]);
+
+      const scenarioRows = useMemo(() => {
+        return [20, 22.5, 25, 27.5, 30, 35, 40, 50, 60].map((ratio) => {
+          const loan = marketValue * ratio / 100;
+          const maintain = loan === 0 ? 0 : marketValue / loan * 100;
+          const marginDrop = maintain === 0 ? 0 : 1 - marginCallRate / maintain;
+          const renewLimitDrop = maintain === 0 ? 0 : 1 - renewRate / maintain;
+          return { ratio, loan, maintain, marginDrop: marginDrop * 100, renewLimitDrop: renewLimitDrop * 100 };
+        });
+      }, [marketValue, marginCallRate, renewRate]);
+
+      const curveData = useMemo(() => {
+        const data = [];
+        for (let drop = 0; drop <= 80; drop += 2) {
+          const newValue = marketValue * (1 - drop / 100);
+          const reinvestedValue = reinvestedMarketValue * (1 - drop / 100);
+          const originalMaintain = loanAmount === 0 ? null : newValue / loanAmount * 100;
+          const reinvestedMaintain = loanAmount === 0 ? null : reinvestedValue / loanAmount * 100;
+          data.push({
+            drop,
+            originalMaintain: originalMaintain >= 100 ? originalMaintain : null,
+            reinvestedMaintain: reinvestedMaintain >= 100 ? reinvestedMaintain : null,
+          });
+        }
+        return data;
+      }, [marketValue, reinvestedMarketValue, loanAmount]);
+
+      const formatWan = (num) => `${num.toLocaleString(undefined, { maximumFractionDigits: 1 })}`;
+      const formatPct = (num) => `${num.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
+      const clampLoanRatio = (value) => Math.min(60, Math.max(0, Number(value) || 0));
+
+      const riskLevel = useMemo(() => {
+        if (loanRatio <= 25) return { text: "舒服區", desc: "波動緩衝很大，適合長期持有與續借。", tone: "safe", color: "emerald" };
+        if (loanRatio <= 30) return { text: "可接受", desc: "仍算安全，但跌幅緩衝開始明顯下降。", tone: "ok", color: "sky" };
+        if (loanRatio <= 40) return { text: "偏積極", desc: "若遇到科技股大修正，續借壓力會變高。", tone: "warn", color: "amber" };
+        return { text: "高風險", desc: "不建議拿借款再買高波動資產。", tone: "danger", color: "rose" };
+      }, [loanRatio]);
+
+      const tooltipStyle = {
+        background: "rgba(8, 9, 13, 0.92)",
+        border: "1px solid rgba(255,255,255,0.1)",
+        borderRadius: 12,
+        backdropFilter: "blur(12px)",
+        boxShadow: "0 20px 40px -12px rgba(0,0,0,0.6)",
+        padding: "8px 12px"
+      };
+
+      return (
+        <div className="min-h-screen p-6 lg:p-10">
+          <div className="max-w-[1400px] mx-auto space-y-8 fade-up">
+
+            {/* Header */}
+            <header className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 pt-4">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-300 mb-4">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>
+                  Pledge Risk Console
+                </div>
+                <h1 className="display text-5xl lg:text-6xl font-extrabold leading-[0.95]">
+                  <span className="gradient-text">股票質押</span><br/>
+                  <span className="accent-text">風險儀表板</span>
+                </h1>
+                <p className="text-slate-400 mt-4 max-w-xl leading-relaxed">
+                  即時計算借款金額、維持率與安全距離。所有數值都會隨著質押比例同步調整。
+                </p>
+              </div>
+
+              <div className={`risk-${riskLevel.tone} px-5 py-4 rounded-2xl flex items-center gap-4 min-w-[280px]`}>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-current/10 ring-1 ring-current/30">
+                  <div className="w-2.5 h-2.5 rounded-full bg-current pulse-dot"></div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.2em] opacity-70">Current Status</div>
+                  <div className="text-xl font-bold mt-0.5">{riskLevel.text}</div>
+                </div>
+              </div>
+            </header>
+
+            {/* Inputs */}
+            <section className="glass-strong rounded-3xl p-6 lg:p-7">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                <Field
+                  label="股票市值"
+                  hint="萬元"
+                  suffix="萬"
+                  type="number"
+                  value={marketValue}
+                  onChange={(e) => setMarketValue(Number(e.target.value) || 0)}
+                />
+
+                <div className="space-y-3">
+                  <div className="flex items-baseline justify-between">
+                    <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">質押比例</label>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number" min="0" max="60" step="0.5"
+                        value={loanRatio}
+                        onChange={(e) => setLoanRatio(clampLoanRatio(e.target.value))}
+                        className="field num w-16 rounded-lg px-2 py-1 text-sm text-right font-semibold"
+                      />
+                      <span className="text-sm text-slate-400">%</span>
+                    </div>
+                  </div>
+                  <div className="pt-2.5 pb-1">
+                    <Slider value={[loanRatio]} min={5} max={60} step={0.5} onValueChange={(v) => setLoanRatio(v[0])} />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-500 num">
+                    <span>5%</span><span>30%</span><span>60%</span>
+                  </div>
+                </div>
+
+                <Field
+                  label="補錢維持率門檻"
+                  hint="預設 130%"
+                  suffix="%"
+                  type="number"
+                  value={marginCallRate}
+                  onChange={(e) => setMarginCallRate(Number(e.target.value) || 0)}
+                />
+
+                <Field
+                  label="續借維持率門檻"
+                  hint="預設 166%"
+                  suffix="%"
+                  type="number"
+                  value={renewRate}
+                  onChange={(e) => setRenewRate(Number(e.target.value) || 0)}
+                />
+              </div>
+            </section>
+
+            {/* Risk description */}
+            <div className="glass rounded-2xl px-6 py-5 flex items-start gap-4">
+              <div className={`risk-${riskLevel.tone} px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap`}>
+                {riskLevel.text}
+              </div>
+              <p className="text-slate-300 leading-relaxed text-sm">
+                {riskLevel.desc}
+                <span className="text-slate-500 ml-3 num">市值 {formatWan(marketValue)} 萬 · 質押 {formatPct(loanRatio)}</span>
+              </p>
+            </div>
+
+            {/* KPI Metrics */}
+            <section className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+              <Metric label="可借出金額" value={`${formatWan(loanAmount)} 萬`} accent="violet" />
+              <Metric label="目前維持率" value={formatPct(currentMaintainRate)} accent="sky" />
+              <Metric label="跌多少要補錢" value={formatPct(marginCallDrop * 100)} accent="rose" caption={`維持率跌破 ${marginCallRate}%`} />
+              <Metric label="跌多少無法續借" value={formatPct(renewDrop * 100)} accent="amber" caption={`維持率跌破 ${renewRate}%`} />
+            </section>
+
+            {/* Reinvestment */}
+            <section className="glass-strong rounded-3xl p-6 lg:p-8">
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
+                <SectionHeader
+                  eyebrow="Scenario · Reinvest"
+                  title="借出資金再投入質押模擬"
+                  subtitle="把借出的錢再買回相同股票並重新放進質押池，但不再額外借款。"
+                />
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-sky-500/10 border border-sky-400/25 text-sky-300 text-xs font-medium whitespace-nowrap">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+                  單次再投入 · 不額外借款
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
+                <Metric label="原始市值" value={`${formatWan(marketValue)} 萬`} />
+                <Metric label="再投入後市值" value={`${formatWan(reinvestedMarketValue)} 萬`} accent="emerald" />
+                <Metric label="再投入後維持率" value={formatPct(reinvestedMaintainRate)} accent="sky" />
+                <Metric label="再投入補錢距離" value={formatPct(reinvestedMarginDrop * 100)} accent="rose" />
+                <Metric label="再投入續借距離" value={formatPct(reinvestedRenewDrop * 100)} accent="amber" />
+              </div>
+
+              <div className="rounded-2xl bg-white/[0.02] border border-white/[0.05] p-5 text-sm text-slate-300 leading-7">
+                <span className="text-slate-500">範例 · </span>
+                市值 2,500 萬借出 500 萬。若把 500 萬再買入同檔資產並重新質押(不再借款)，
+                總質押市值上升至 3,000 萬而負債仍為 500 萬，
+                <span className="accent-text font-semibold">維持率從 500% 提升至 600%</span>。
+              </div>
+            </section>
+
+            {/* Charts */}
+            <section className="grid grid-cols-1 2xl:grid-cols-2 gap-6">
+              <ChartCard
+                title="原始質押"
+                eyebrow="Original"
+                color="#38bdf8"
+                gradientId="origGrad"
+                dataKey="originalMaintain"
+                curveData={curveData}
+                marginCallRate={marginCallRate}
+                renewRate={renewRate}
+                tooltipStyle={tooltipStyle}
+              />
+              <ChartCard
+                title="再投入後質押"
+                eyebrow="Reinvested"
+                color="#22c55e"
+                gradientId="reinvGrad"
+                dataKey="reinvestedMaintain"
+                curveData={curveData}
+                marginCallRate={marginCallRate}
+                renewRate={renewRate}
+                tooltipStyle={tooltipStyle}
+              />
+            </section>
+
+            {/* Compare table + bar */}
+            <section className="grid grid-cols-1 2xl:grid-cols-2 gap-6">
+              <div className="glass-strong rounded-3xl p-6 lg:p-7">
+                <SectionHeader eyebrow="Compare" title="不同質押比例對照" />
+                <div className="overflow-x-auto -mx-2">
+                  <table className="w-full text-sm min-w-[640px]">
+                    <thead>
+                      <tr className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                        <th className="text-left py-3 px-3 font-semibold">比例</th>
+                        <th className="text-right py-3 px-3 font-semibold">可借出</th>
+                        <th className="text-right py-3 px-3 font-semibold">維持率</th>
+                        <th className="text-right py-3 px-3 font-semibold">補錢距離</th>
+                        <th className="text-right py-3 px-3 font-semibold">續借距離</th>
+                      </tr>
+                    </thead>
+                    <tbody className="num">
+                      {scenarioRows.map((r) => {
+                        const active = Math.abs(r.ratio - loanRatio) < 0.25;
+                        return (
+                          <tr
+                            key={r.ratio}
+                            className={`border-t border-white/[0.04] ${active ? "bg-gradient-to-r from-sky-500/15 to-transparent" : ""}`}
+                          >
+                            <td className="py-3.5 px-3 font-semibold text-white">
+                              {active && <span className="inline-block w-1 h-4 rounded-full bg-sky-400 mr-2 align-middle"></span>}
+                              {formatPct(r.ratio)}
+                            </td>
+                            <td className="text-right py-3.5 px-3 text-slate-200">{formatWan(r.loan)} 萬</td>
+                            <td className="text-right py-3.5 px-3 text-slate-200">{formatPct(r.maintain)}</td>
+                            <td className="text-right py-3.5 px-3 text-rose-300">{formatPct(r.marginDrop)}</td>
+                            <td className="text-right py-3.5 px-3 text-amber-300">{formatPct(r.renewLimitDrop)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="glass-strong rounded-3xl p-6 lg:p-7">
+                <SectionHeader eyebrow="Buffer" title="續借安全距離分布" />
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={scenarioRows} margin={{ top: 30, right: 16, left: -8, bottom: 8 }}>
+                      <defs>
+                        <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#7dd3fc" stopOpacity={1} />
+                          <stop offset="100%" stopColor="#0284c7" stopOpacity={0.6} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                      <XAxis dataKey="ratio" stroke="rgba(255,255,255,0.4)"
+                        tick={{ fill: '#cbd5e1', fontSize: 12 }}
+                        axisLine={false} tickLine={false}
+                        tickFormatter={(v) => `${v}%`} />
+                      <YAxis stroke="rgba(255,255,255,0.4)"
+                        tick={{ fill: '#cbd5e1', fontSize: 12 }}
+                        axisLine={false} tickLine={false}
+                        tickFormatter={(v) => `${v}%`} />
+                      <Tooltip
+                        cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                        contentStyle={tooltipStyle}
+                        formatter={(v) => [`${Number(v).toFixed(1)}%`, "續借距離"]}
+                        labelFormatter={(v) => `質押比例 ${v}%`} />
+                      <Bar dataKey="renewLimitDrop" fill="url(#barGrad)" radius={[10, 10, 0, 0]}>
+                        <LabelList dataKey="renewLimitDrop" position="top"
+                          formatter={(v) => `${Number(v).toFixed(0)}%`}
+                          fill="#e2e8f0"
+                          style={{ fontWeight: 600, fontSize: 11 }} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </section>
+
+            {/* Footer */}
+            <section className="glass rounded-2xl p-6 grid grid-cols-1 lg:grid-cols-3 gap-5 text-sm">
+              <FooterItem
+                label="維持率公式"
+                value="股票市值 ÷ 借款金額 × 100%"
+              />
+              <FooterItem
+                label="比例 vs 安全"
+                value="比例越高 → 借出越多 → 補錢與續借距離縮短"
+              />
+              <FooterItem
+                label="保守上限建議"
+                value="25% 為舒服上限，30% 為不應再加槓桿上限"
+              />
+            </section>
+
+            <div className="text-center text-[11px] text-slate-600 py-4 tracking-wider">
+              PLEDGE RISK CONSOLE · BUILT WITH REACT + RECHARTS
+            </div>
+
+          </div>
+        </div>
+      );
+    }
+
+    function FooterItem({ label, value }) {
+      return (
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500 mb-1.5">{label}</div>
+          <div className="text-slate-300 leading-relaxed">{value}</div>
+        </div>
+      );
+    }
+
+    function ChartCard({ title, eyebrow, color, gradientId, dataKey, curveData, marginCallRate, renewRate, tooltipStyle }) {
+      return (
+        <div className="glass-strong rounded-3xl p-6 lg:p-7">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] mb-1.5" style={{ color }}>{eyebrow}</div>
+              <h3 className="text-lg font-bold text-white">{title}</h3>
+            </div>
+            <div className="flex items-center gap-3 text-[11px]">
+              <span className="flex items-center gap-1.5 text-slate-300">
+                <span className="w-2 h-2 rounded-full" style={{ background: color, boxShadow: `0 0 10px ${color}` }}></span>
+                維持率
+              </span>
+              <span className="flex items-center gap-1.5 text-rose-300">
+                <span className="inline-block w-4 border-t-[1.5px] border-dashed border-rose-400"></span>
+                補錢 {marginCallRate}%
+              </span>
+              <span className="flex items-center gap-1.5 text-amber-300">
+                <span className="inline-block w-4 border-t-[1.5px] border-dashed border-amber-400"></span>
+                續借 {renewRate}%
+              </span>
+            </div>
+          </div>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={curveData} margin={{ top: 16, right: 24, left: -8, bottom: 8 }}>
+                <defs>
+                  <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={color} stopOpacity={0.4} />
+                    <stop offset="100%" stopColor={color} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <XAxis
+                  dataKey="drop"
+                  stroke="rgba(255,255,255,0.4)"
+                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  axisLine={false} tickLine={false}
+                  tickFormatter={(v) => `-${v}%`}
+                />
+                <YAxis
+                  stroke="rgba(255,255,255,0.4)"
+                  domain={['dataMin', 'auto']}
+                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  axisLine={false} tickLine={false}
+                  tickFormatter={(v) => `${Math.round(v)}%`}
+                />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(v) => [`${Number(v).toFixed(1)}%`, "維持率"]}
+                  labelFormatter={(v) => `下跌 ${v}%`}
+                />
+                <ReferenceLine y={marginCallRate} stroke="#f43f5e" strokeDasharray="4 4" strokeWidth={1.5} strokeOpacity={0.85} ifOverflow="extendDomain" />
+                <ReferenceLine y={renewRate} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1.5} strokeOpacity={0.85} ifOverflow="extendDomain" />
+                <Area
+                  type="monotone"
+                  dataKey={dataKey}
+                  stroke={color}
+                  strokeWidth={2.5}
+                  fill={`url(#${gradientId})`}
+                  dot={false}
+                  activeDot={{ r: 5, strokeWidth: 2, stroke: '#08090d' }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<PledgeDashboard />);
+  </script>
+</body>
+</html>
